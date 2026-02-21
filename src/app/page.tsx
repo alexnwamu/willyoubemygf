@@ -13,6 +13,7 @@ type Screen =
   | "hook"
   | "q3a"
   | "q3b"
+  | "drumroll"
   | "proposal"
   | "finale";
 
@@ -72,6 +73,7 @@ export default function Home() {
     { id: number; x: number }[]
   >([]);
   const [flashMsg, setFlashMsg] = useState("");
+  const [drumPhase, setDrumPhase] = useState(0);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +132,75 @@ export default function Home() {
     },
     [bgClicks],
   );
+
+  // Drum roll sound effect
+  const playDrumRoll = useCallback(() => {
+    try {
+      const ctx = new AudioContext();
+      const totalDuration = 3.5;
+      const startTime = ctx.currentTime;
+
+      // Snare-like hits that accelerate
+      const hitTimes: number[] = [];
+      let t = 0;
+      let interval = 0.22;
+      while (t < totalDuration - 0.3) {
+        hitTimes.push(t);
+        t += interval;
+        interval = Math.max(0.04, interval * 0.88);
+      }
+
+      hitTimes.forEach((hitT) => {
+        const bufferSize = ctx.sampleRate * 0.08;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gainNode = ctx.createGain();
+        const vol = 0.18 + Math.min(0.35, (hitT / totalDuration) * 0.5);
+        gainNode.gain.setValueAtTime(vol, startTime + hitT);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.001,
+          startTime + hitT + 0.07,
+        );
+        source.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        source.start(startTime + hitT);
+      });
+
+      // Final cymbal crash
+      const crashBuffer = ctx.createBuffer(
+        1,
+        ctx.sampleRate * 0.6,
+        ctx.sampleRate,
+      );
+      const crashData = crashBuffer.getChannelData(0);
+      for (let i = 0; i < crashBuffer.length; i++) {
+        crashData[i] =
+          (Math.random() * 2 - 1) * Math.pow(1 - i / crashBuffer.length, 1.5);
+      }
+      const crashSource = ctx.createBufferSource();
+      crashSource.buffer = crashBuffer;
+      const crashGain = ctx.createGain();
+      crashGain.gain.setValueAtTime(0.55, startTime + totalDuration - 0.3);
+      crashGain.gain.exponentialRampToValueAtTime(
+        0.001,
+        startTime + totalDuration + 0.3,
+      );
+      const crashFilter = ctx.createBiquadFilter();
+      crashFilter.type = "highpass";
+      crashFilter.frequency.value = 3000;
+      crashSource.connect(crashFilter);
+      crashFilter.connect(crashGain);
+      crashGain.connect(ctx.destination);
+      crashSource.start(startTime + totalDuration - 0.3);
+    } catch {
+      // Audio not supported
+    }
+  }, []);
 
   // Celebration sound effect (subtle pop)
   const playPop = useCallback(() => {
@@ -250,6 +321,25 @@ export default function Home() {
     setTimeout(() => setFlashMsg(""), 2500);
   }, []);
 
+  // Drumroll screen auto-advance
+  useEffect(() => {
+    if (screen !== "drumroll") return;
+    setDrumPhase(0);
+    playDrumRoll();
+
+    const t1 = setTimeout(() => setDrumPhase(1), 800);
+    const t2 = setTimeout(() => setDrumPhase(2), 1800);
+    const t3 = setTimeout(() => setDrumPhase(3), 2800);
+    const t4 = setTimeout(() => setScreen("proposal"), 4200);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+    };
+  }, [screen, playDrumRoll]);
+
   // Replay
   const handleReplay = useCallback(() => {
     setScreen("landing");
@@ -265,6 +355,7 @@ export default function Home() {
     setIdleShown(false);
     setBgClicks(0);
     setFlashMsg("");
+    setDrumPhase(0);
   }, []);
 
   // Screen transition variants
@@ -597,7 +688,7 @@ export default function Home() {
                 whileTap={{ scale: 0.92 }}
                 onClick={() => {
                   playPop();
-                  setScreen("proposal");
+                  setScreen("drumroll");
                 }}
                 style={btnPrimary}
                 className="body-font"
@@ -609,13 +700,68 @@ export default function Home() {
                 whileTap={{ scale: 0.92 }}
                 onClick={() => {
                   playPop();
-                  setScreen("proposal");
+                  setScreen("drumroll");
                 }}
                 style={btnSecondary}
                 className="body-font"
               >
                 We really do
               </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ===== SCREEN 5c: DRUMROLL ===== */}
+        {screen === "drumroll" && (
+          <motion.div
+            key="drumroll"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition}
+            className="relative z-10 flex flex-col items-center gap-6 text-center max-w-md mx-auto select-none"
+          >
+            <motion.div
+              animate={{ rotate: [0, -8, 8, -8, 8, 0] }}
+              transition={{
+                duration: 0.4,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="text-7xl"
+            >
+              🥁
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0, letterSpacing: "0.05em" }}
+              animate={{ opacity: 1, letterSpacing: "0.15em" }}
+              transition={{ duration: 0.6 }}
+              className="text-2xl md:text-3xl font-bold heading-font text-[#3A0066] uppercase tracking-widest"
+            >
+              Drum roll please…
+            </motion.p>
+
+            <div className="flex gap-2 items-end justify-center h-10">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  animate={
+                    drumPhase > i
+                      ? { scaleY: [1, 2.5, 1], opacity: 1 }
+                      : { scaleY: 1, opacity: 0.25 }
+                  }
+                  transition={{ duration: 0.3, delay: i * 0.05 }}
+                  style={{
+                    width: 10,
+                    height: 32,
+                    borderRadius: 6,
+                    background: "#7B2CBF",
+                    transformOrigin: "bottom",
+                  }}
+                />
+              ))}
             </div>
           </motion.div>
         )}
