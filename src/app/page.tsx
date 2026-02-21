@@ -501,8 +501,7 @@ export default function Home() {
               className="sticky-note max-w-sm w-full"
             >
               <p className="text-xl md:text-2xl font-bold heading-font text-[#5B4A2F] leading-relaxed">
-                &ldquo;Remember when you said I wouldn&apos;t ever kiss you?
-                &rdquo;
+                &ldquo;Remember when you said I would never kiss you? &rdquo;
               </p>
             </motion.div>
 
